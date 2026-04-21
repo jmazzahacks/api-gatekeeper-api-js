@@ -1,0 +1,119 @@
+/**
+ * API Gatekeeper API Client
+ */
+
+import type {
+  ApiError,
+  GatekeeperClientConfig,
+  Route,
+} from './types.js';
+
+export class GatekeeperApiError extends Error {
+  public readonly code: number;
+  public readonly status: string;
+
+  constructor(error: ApiError) {
+    super(error.message || error.error || 'Unknown API error');
+    this.name = 'GatekeeperApiError';
+    this.code = error.code;
+    this.status = error.status || 'error';
+  }
+}
+
+export class GatekeeperClient {
+  private readonly baseUrl: string;
+  private token: string | undefined;
+  private readonly timeout: number;
+
+  constructor(config: GatekeeperClientConfig) {
+    this.baseUrl = config.baseUrl.replace(/\/$/, '');
+    this.token = config.token;
+    this.timeout = config.timeout ?? 30000;
+  }
+
+  /** Replace the bearer token used for authenticated requests. */
+  setToken(token: string | undefined): void {
+    this.token = token;
+  }
+
+  private async request<T>(
+    method: string,
+    path: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    body?: unknown,
+  ): Promise<T> {
+    const url = new URL(`${this.baseUrl}${path}`);
+
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) {
+          url.searchParams.set(key, String(value));
+        }
+      }
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(url.toString(), {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        let errorData: Partial<ApiError> = {};
+        try {
+          errorData = await response.json();
+        } catch {
+          // Response body wasn't JSON — fall through with an empty envelope.
+        }
+        throw new GatekeeperApiError({
+          code: response.status,
+          status: errorData.status,
+          message: errorData.message,
+          error: errorData.error,
+        });
+      }
+
+      // 204 No Content — nothing to parse
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      if (error instanceof GatekeeperApiError) {
+        throw error;
+      }
+
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Request timeout after ${this.timeout}ms`);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * List all configured routes on the Gatekeeper instance.
+   * Requires a valid bearer token from a provisioned console admin.
+   */
+  async listRoutes(): Promise<Route[]> {
+    return this.request<Route[]>('GET', '/api/admin/routes');
+  }
+}

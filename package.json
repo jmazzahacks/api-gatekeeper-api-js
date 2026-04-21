@@ -1,0 +1,42 @@
+{
+  "name": "@jmazzahacks/api-gatekeeper-api",
+  "version": "0.0.1",
+  "description": "TypeScript API client for API Gatekeeper — authentication/authorization service for nginx auth_request",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "api-gatekeeper",
+    "auth",
+    "nginx",
+    "api-client"
+  ],
+  "author": "Jason Byteforge <jason@reallybadapps.com>",
+  "license": "SEE LICENSE IN LICENSE FILE (O'Saasy)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jmazzahacks/api-gatekeeper-api-js.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
+  }
+}

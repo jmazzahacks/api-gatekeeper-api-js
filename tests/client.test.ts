@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GatekeeperApiError, GatekeeperClient } from '../src/client.js';
-import type { Route } from '../src/types.js';
+import type { ClientSummary, Route } from '../src/types.js';
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -27,6 +27,15 @@ const SAMPLE_ROUTE: Route = {
     GET: { auth_required: true, auth_type: 'api_key' },
     POST: { auth_required: true, auth_type: 'hmac' },
   },
+  created_at: 1_700_000_000,
+  updated_at: 1_700_000_000,
+};
+
+const SAMPLE_CLIENT: ClientSummary = {
+  client_id: 'client-uuid-1',
+  client_name: 'alpha-service',
+  status: 'active',
+  api_key_masked: 'ak_alpha…0001',
   created_at: 1_700_000_000,
   updated_at: 1_700_000_000,
 };
@@ -169,6 +178,60 @@ describe('GatekeeperClient.listRoutes', () => {
     await expect(client.listRoutes()).rejects.toMatchObject({
       name: 'GatekeeperApiError',
       code: 503,
+    });
+  });
+});
+
+describe('GatekeeperClient.listClients', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('calls GET /api/admin/clients', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse([]));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.listClients();
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/clients');
+    expect((init as RequestInit).method).toBe('GET');
+  });
+
+  it('returns the parsed array of client summaries', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse([SAMPLE_CLIENT]));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const clients = await client.listClients();
+
+    expect(clients).toHaveLength(1);
+    expect(clients[0].client_name).toBe('alpha-service');
+    expect(clients[0].status).toBe('active');
+    expect(clients[0].api_key_masked).toBe('ak_alpha…0001');
+  });
+
+  it('returns an empty array when none are configured', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse([]));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const clients = await client.listClients();
+
+    expect(clients).toEqual([]);
+  });
+
+  it('throws GatekeeperApiError on 401', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'Unauthorized' }, 401));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.listClients()).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 401,
     });
   });
 });

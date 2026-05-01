@@ -35,6 +35,27 @@ export interface Route {
   updated_at: number;
 }
 
+/** Lifecycle state of a Client credential. */
+export type ClientStatus = 'active' | 'suspended' | 'revoked';
+
+/**
+ * A Client (credential) as returned by the admin list endpoint.
+ *
+ * The list endpoint returns a redacted projection: shared_secret is never
+ * exposed, and api_key is masked to `prefix…suffix` form for identification.
+ * If you need the raw api_key/shared_secret, those are returned only at
+ * creation/rotation time via dedicated endpoints (not modeled here yet).
+ */
+export interface ClientSummary {
+  client_id: string;
+  client_name: string;
+  status: ClientStatus;
+  /** Masked form: e.g. `ak_full_…2345`. Identifies the credential without exposing it. */
+  api_key_masked: string;
+  created_at: number;
+  updated_at: number;
+}
+
 /** Error envelope returned by the Gatekeeper API. */
 export interface ApiError {
   /** HTTP status code. */

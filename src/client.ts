@@ -4,6 +4,7 @@
 
 import type {
   ApiError,
+  ClientSummary,
   GatekeeperClientConfig,
   Route,
 } from './types.js';
@@ -115,5 +116,16 @@ export class GatekeeperClient {
    */
   async listRoutes(): Promise<Route[]> {
     return this.request<Route[]>('GET', '/api/admin/routes');
+  }
+
+  /**
+   * List all configured clients (credentials) on the Gatekeeper instance.
+   * Requires a valid bearer token from a provisioned console admin.
+   *
+   * The response is redacted — shared_secret is never returned, and api_key
+   * is masked. See ClientSummary.
+   */
+  async listClients(): Promise<ClientSummary[]> {
+    return this.request<ClientSummary[]>('GET', '/api/admin/clients');
   }
 }

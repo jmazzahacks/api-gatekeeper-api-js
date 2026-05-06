@@ -56,6 +56,24 @@ export interface ClientSummary {
   updated_at: number;
 }
 
+/**
+ * A ClientPermission joined with display fields, as returned by the admin
+ * list endpoint. The backend joins client_name and route domain/pattern/
+ * service_name so the console can render a useful table without per-row
+ * lookups.
+ */
+export interface PermissionSummary {
+  permission_id: string;
+  client_id: string;
+  client_name: string;
+  route_id: string;
+  route_domain: string;
+  route_pattern: string;
+  route_service_name: string;
+  allowed_methods: HttpMethod[];
+  created_at: number;
+}
+
 /** Error envelope returned by the Gatekeeper API. */
 export interface ApiError {
   /** HTTP status code. */

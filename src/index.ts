@@ -26,5 +26,6 @@ export type {
   GatekeeperClientConfig,
   HttpMethod,
   MethodAuth,
+  PermissionSummary,
   Route,
 } from './types.js';

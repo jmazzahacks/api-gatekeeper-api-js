@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GatekeeperApiError, GatekeeperClient } from '../src/client.js';
-import type { ClientSummary, Route } from '../src/types.js';
+import type { ClientSummary, PermissionSummary, Route } from '../src/types.js';
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -38,6 +38,18 @@ const SAMPLE_CLIENT: ClientSummary = {
   api_key_masked: 'ak_alpha…0001',
   created_at: 1_700_000_000,
   updated_at: 1_700_000_000,
+};
+
+const SAMPLE_PERMISSION: PermissionSummary = {
+  permission_id: 'perm-uuid-1',
+  client_id: 'client-uuid-1',
+  client_name: 'alpha-service',
+  route_id: 'abc-123',
+  route_domain: 'api.example.com',
+  route_pattern: '/api/users/*',
+  route_service_name: 'user-svc',
+  allowed_methods: ['GET', 'POST'],
+  created_at: 1_700_000_000,
 };
 
 describe('GatekeeperClient configuration', () => {
@@ -230,6 +242,60 @@ describe('GatekeeperClient.listClients', () => {
     const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
 
     await expect(client.listClients()).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 401,
+    });
+  });
+});
+
+describe('GatekeeperClient.listPermissions', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('calls GET /api/admin/permissions', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse([]));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.listPermissions();
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/permissions');
+    expect((init as RequestInit).method).toBe('GET');
+  });
+
+  it('returns the parsed array of permission summaries', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse([SAMPLE_PERMISSION]));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const permissions = await client.listPermissions();
+
+    expect(permissions).toHaveLength(1);
+    expect(permissions[0].client_name).toBe('alpha-service');
+    expect(permissions[0].route_pattern).toBe('/api/users/*');
+    expect(permissions[0].allowed_methods).toEqual(['GET', 'POST']);
+  });
+
+  it('returns an empty array when none are configured', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse([]));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const permissions = await client.listPermissions();
+
+    expect(permissions).toEqual([]);
+  });
+
+  it('throws GatekeeperApiError on 401', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'Unauthorized' }, 401));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.listPermissions()).rejects.toMatchObject({
       name: 'GatekeeperApiError',
       code: 401,
     });

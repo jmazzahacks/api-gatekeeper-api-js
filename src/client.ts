@@ -6,6 +6,7 @@ import type {
   ApiError,
   ClientSummary,
   GatekeeperClientConfig,
+  PermissionSummary,
   Route,
 } from './types.js';
 
@@ -127,5 +128,16 @@ export class GatekeeperClient {
    */
   async listClients(): Promise<ClientSummary[]> {
     return this.request<ClientSummary[]>('GET', '/api/admin/clients');
+  }
+
+  /**
+   * List all client→route permissions on the Gatekeeper instance.
+   * Requires a valid bearer token from a provisioned console admin.
+   *
+   * Each row includes the joined display fields (client_name, route_*) so
+   * the console can render rows directly. See PermissionSummary.
+   */
+  async listPermissions(): Promise<PermissionSummary[]> {
+    return this.request<PermissionSummary[]>('GET', '/api/admin/permissions');
   }
 }

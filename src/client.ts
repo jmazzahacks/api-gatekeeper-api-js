@@ -9,7 +9,9 @@ import type {
   ClientSummary,
   ClientUpdatePayload,
   GatekeeperClientConfig,
+  PermissionCreatePayload,
   PermissionSummary,
+  PermissionUpdatePayload,
   Route,
   RoutePayload,
 } from './types.js';
@@ -197,5 +199,43 @@ export class GatekeeperClient {
    */
   async listPermissions(): Promise<PermissionSummary[]> {
     return this.request<PermissionSummary[]>('GET', '/api/admin/permissions');
+  }
+
+  /**
+   * Grant a client permission to access a route with specific HTTP methods.
+   * Returns the persisted permission joined with display fields.
+   * Throws GatekeeperApiError(409) if a permission for the same
+   * (client_id, route_id) pair already exists.
+   */
+  async createPermission(payload: PermissionCreatePayload): Promise<PermissionSummary> {
+    return this.request<PermissionSummary>('POST', '/api/admin/permissions', undefined, payload);
+  }
+
+  /**
+   * Replace allowed_methods on an existing permission. client_id and
+   * route_id are immutable here — to change those, deletePermission then
+   * createPermission. Throws GatekeeperApiError(404) if unknown.
+   */
+  async updatePermission(
+    permissionId: string,
+    payload: PermissionUpdatePayload,
+  ): Promise<PermissionSummary> {
+    return this.request<PermissionSummary>(
+      'PUT',
+      `/api/admin/permissions/${encodeURIComponent(permissionId)}`,
+      undefined,
+      payload,
+    );
+  }
+
+  /**
+   * Revoke a permission. Resolves on 204.
+   * Throws GatekeeperApiError(404) if the permission_id is unknown.
+   */
+  async deletePermission(permissionId: string): Promise<void> {
+    await this.request<void>(
+      'DELETE',
+      `/api/admin/permissions/${encodeURIComponent(permissionId)}`,
+    );
   }
 }

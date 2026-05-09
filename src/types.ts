@@ -130,6 +130,21 @@ export interface PermissionSummary {
   created_at: number;
 }
 
+/** Body of POST /api/admin/permissions. 409 if (client_id, route_id) already exists. */
+export interface PermissionCreatePayload {
+  client_id: string;
+  route_id: string;
+  allowed_methods: HttpMethod[];
+}
+
+/**
+ * Body of PUT /api/admin/permissions/<id>. Only allowed_methods is mutable;
+ * to change client_id or route_id, DELETE + POST a new permission.
+ */
+export interface PermissionUpdatePayload {
+  allowed_methods: HttpMethod[];
+}
+
 /** Error envelope returned by the Gatekeeper API. */
 export interface ApiError {
   /** HTTP status code. */

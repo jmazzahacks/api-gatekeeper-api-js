@@ -12,7 +12,9 @@ import type {
   ClientCreatePayload,
   ClientSummary,
   ClientUpdatePayload,
+  PermissionCreatePayload,
   PermissionSummary,
+  PermissionUpdatePayload,
   Route,
   RoutePayload,
 } from '../src/types.js';
@@ -622,6 +624,167 @@ describe('GatekeeperClient.deleteClient', () => {
     const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
 
     await expect(client.deleteClient('missing')).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 404,
+    });
+  });
+});
+
+describe('GatekeeperClient.createPermission', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const PAYLOAD: PermissionCreatePayload = {
+    client_id: 'client-uuid-1',
+    route_id: 'route-uuid-1',
+    allowed_methods: ['GET', 'POST'],
+  };
+
+  const SUMMARY: PermissionSummary = {
+    permission_id: 'perm-uuid-1',
+    client_id: 'client-uuid-1',
+    client_name: 'alpha',
+    route_id: 'route-uuid-1',
+    route_domain: 'api.example.com',
+    route_pattern: '/api/users',
+    route_service_name: 'user-svc',
+    allowed_methods: ['GET', 'POST'],
+    created_at: 1_700_000_000,
+  };
+
+  it('POSTs to /api/admin/permissions with the payload as JSON body', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SUMMARY, 201));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com', token: 't' });
+
+    await client.createPermission(PAYLOAD);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/permissions');
+    expect((init as RequestInit).method).toBe('POST');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(PAYLOAD);
+  });
+
+  it('returns the joined PermissionSummary on 201', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SUMMARY, 201));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const summary = await client.createPermission(PAYLOAD);
+
+    expect(summary.permission_id).toBe('perm-uuid-1');
+    expect(summary.client_name).toBe('alpha');
+  });
+
+  it('throws GatekeeperApiError on 409 (duplicate pair)', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'conflict' }, 409));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.createPermission(PAYLOAD)).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 409,
+    });
+  });
+});
+
+describe('GatekeeperClient.updatePermission', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const PAYLOAD: PermissionUpdatePayload = { allowed_methods: ['DELETE'] };
+
+  const SUMMARY: PermissionSummary = {
+    permission_id: 'perm-uuid-1',
+    client_id: 'client-uuid-1',
+    client_name: 'alpha',
+    route_id: 'route-uuid-1',
+    route_domain: '*',
+    route_pattern: '/api/users',
+    route_service_name: 'user-svc',
+    allowed_methods: ['DELETE'],
+    created_at: 1_700_000_000,
+  };
+
+  it('PUTs to /api/admin/permissions/<id>', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SUMMARY));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.updatePermission('perm-uuid-1', PAYLOAD);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/permissions/perm-uuid-1');
+    expect((init as RequestInit).method).toBe('PUT');
+  });
+
+  it('url-encodes the permission id', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SUMMARY));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.updatePermission('weird id/with slash', PAYLOAD);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://gatekeeper.example.com/api/admin/permissions/weird%20id%2Fwith%20slash',
+    );
+  });
+
+  it('throws GatekeeperApiError on 404', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'not_found' }, 404));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.updatePermission('missing', PAYLOAD)).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 404,
+    });
+  });
+});
+
+describe('GatekeeperClient.deletePermission', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('DELETEs /api/admin/permissions/<id>', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.deletePermission('perm-uuid-1');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/permissions/perm-uuid-1');
+    expect((init as RequestInit).method).toBe('DELETE');
+  });
+
+  it('resolves on 204', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.deletePermission('perm-uuid-1')).resolves.toBeUndefined();
+  });
+
+  it('throws GatekeeperApiError on 404', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'not_found' }, 404));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.deletePermission('missing')).rejects.toMatchObject({
       name: 'GatekeeperApiError',
       code: 404,
     });

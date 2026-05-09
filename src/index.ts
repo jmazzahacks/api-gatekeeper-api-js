@@ -30,7 +30,9 @@ export type {
   GatekeeperClientConfig,
   HttpMethod,
   MethodAuth,
+  PermissionCreatePayload,
   PermissionSummary,
+  PermissionUpdatePayload,
   Route,
   RoutePayload,
 } from './types.js';

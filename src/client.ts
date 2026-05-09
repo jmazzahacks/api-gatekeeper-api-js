@@ -4,7 +4,10 @@
 
 import type {
   ApiError,
+  ClientCreated,
+  ClientCreatePayload,
   ClientSummary,
+  ClientUpdatePayload,
   GatekeeperClientConfig,
   PermissionSummary,
   Route,
@@ -152,6 +155,37 @@ export class GatekeeperClient {
    */
   async listClients(): Promise<ClientSummary[]> {
     return this.request<ClientSummary[]>('GET', '/api/admin/clients');
+  }
+
+  /**
+   * Create a new client. Returns the full Client record including raw
+   * api_key and shared_secret — this is the ONLY response that exposes the
+   * raw values. Surface them to the user immediately; subsequent listClients
+   * calls return the redacted ClientSummary projection.
+   */
+  async createClient(payload: ClientCreatePayload): Promise<ClientCreated> {
+    return this.request<ClientCreated>('POST', '/api/admin/clients', undefined, payload);
+  }
+
+  /**
+   * Rename a client and/or change its status. Secrets are immutable here.
+   * Returns the redacted ClientSummary. 404 if the client_id is unknown.
+   */
+  async updateClient(clientId: string, payload: ClientUpdatePayload): Promise<ClientSummary> {
+    return this.request<ClientSummary>(
+      'PUT',
+      `/api/admin/clients/${encodeURIComponent(clientId)}`,
+      undefined,
+      payload,
+    );
+  }
+
+  /**
+   * Delete a client. Cascade-removes its permissions. Resolves on 204.
+   * 404 if the client_id is unknown.
+   */
+  async deleteClient(clientId: string): Promise<void> {
+    await this.request<void>('DELETE', `/api/admin/clients/${encodeURIComponent(clientId)}`);
   }
 
   /**

@@ -21,8 +21,12 @@ export { GatekeeperClient, GatekeeperApiError } from './client.js';
 export type {
   ApiError,
   AuthType,
+  ClientCreated,
+  ClientCreatePayload,
   ClientStatus,
   ClientSummary,
+  ClientUpdatePayload,
+  CredentialSpec,
   GatekeeperClientConfig,
   HttpMethod,
   MethodAuth,

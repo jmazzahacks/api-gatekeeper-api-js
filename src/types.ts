@@ -70,6 +70,49 @@ export interface ClientSummary {
 }
 
 /**
+ * One credential's request shape on createClient.
+ *
+ * - `null` — omit this credential type entirely
+ * - `{ generate: true }` — server generates a strong random value
+ * - `{ value: '<string>' }` — use a caller-supplied value (e.g. legacy migration)
+ */
+export type CredentialSpec =
+  | null
+  | { generate: true }
+  | { value: string };
+
+/** Body of POST /api/admin/clients. At least one of api_key/shared_secret must be non-null. */
+export interface ClientCreatePayload {
+  client_name: string;
+  api_key: CredentialSpec;
+  shared_secret: CredentialSpec;
+  /** Defaults to "active" if omitted. */
+  status?: ClientStatus;
+}
+
+/**
+ * Response shape for createClient — the FULL Client record including raw
+ * api_key and shared_secret (one-time exposure). Subsequent reads return the
+ * redacted ClientSummary instead. Surface the raw secrets to the user
+ * immediately and warn them they cannot be retrieved later.
+ */
+export interface ClientCreated {
+  client_id: string;
+  client_name: string;
+  api_key: string | null;
+  shared_secret: string | null;
+  status: ClientStatus;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Body of PUT /api/admin/clients/<id>. Secrets are immutable here. */
+export interface ClientUpdatePayload {
+  client_name: string;
+  status: ClientStatus;
+}
+
+/**
  * A ClientPermission joined with display fields, as returned by the admin
  * list endpoint. The backend joins client_name and route domain/pattern/
  * service_name so the console can render a useful table without per-row

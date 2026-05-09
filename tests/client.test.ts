@@ -7,7 +7,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GatekeeperApiError, GatekeeperClient } from '../src/client.js';
-import type { ClientSummary, PermissionSummary, Route, RoutePayload } from '../src/types.js';
+import type {
+  ClientCreated,
+  ClientCreatePayload,
+  ClientSummary,
+  ClientUpdatePayload,
+  PermissionSummary,
+  Route,
+  RoutePayload,
+} from '../src/types.js';
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -441,6 +449,179 @@ describe('GatekeeperClient.deleteRoute', () => {
     const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
 
     await expect(client.deleteRoute('missing')).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 404,
+    });
+  });
+});
+
+describe('GatekeeperClient.createClient', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const PAYLOAD: ClientCreatePayload = {
+    client_name: 'mobile-app',
+    api_key: { generate: true },
+    shared_secret: null,
+  };
+
+  const CREATED: ClientCreated = {
+    client_id: 'cuid-1',
+    client_name: 'mobile-app',
+    api_key: 'ak_raw_value_aaaaaaaaaaaaaaaaaaaaaa',
+    shared_secret: null,
+    status: 'active',
+    created_at: 1_700_000_000,
+    updated_at: 1_700_000_000,
+  };
+
+  it('POSTs to /api/admin/clients with the payload as JSON body', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(CREATED, 201));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com', token: 't' });
+
+    await client.createClient(PAYLOAD);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/clients');
+    expect((init as RequestInit).method).toBe('POST');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(PAYLOAD);
+  });
+
+  it('returns the parsed Client with the raw api_key on 201', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(CREATED, 201));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const created = await client.createClient(PAYLOAD);
+
+    expect(created.client_id).toBe('cuid-1');
+    expect(created.api_key).toBe('ak_raw_value_aaaaaaaaaaaaaaaaaaaaaa');
+    expect(created.shared_secret).toBeNull();
+  });
+
+  it('throws GatekeeperApiError on 400 (validation failure)', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'invalid_request' }, 400));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.createClient(PAYLOAD)).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 400,
+    });
+  });
+});
+
+describe('GatekeeperClient.updateClient', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const PAYLOAD: ClientUpdatePayload = {
+    client_name: 'renamed',
+    status: 'suspended',
+  };
+
+  const SUMMARY: ClientSummary = {
+    client_id: 'cuid-1',
+    client_name: 'renamed',
+    status: 'suspended',
+    api_key_masked: 'ak_raw_…aaaa',
+    created_at: 1_700_000_000,
+    updated_at: 1_700_001_000,
+  };
+
+  it('PUTs to /api/admin/clients/<id>', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SUMMARY));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.updateClient('cuid-1', PAYLOAD);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/clients/cuid-1');
+    expect((init as RequestInit).method).toBe('PUT');
+  });
+
+  it('url-encodes the client id', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SUMMARY));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.updateClient('weird id/with slash', PAYLOAD);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://gatekeeper.example.com/api/admin/clients/weird%20id%2Fwith%20slash',
+    );
+  });
+
+  it('returns the redacted ClientSummary (no raw secrets)', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SUMMARY));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const summary = await client.updateClient('cuid-1', PAYLOAD);
+
+    expect(summary.api_key_masked).toBe('ak_raw_…aaaa');
+    // ClientSummary type has no api_key/shared_secret fields, but verify the
+    // wire shape doesn't accidentally pass them through.
+    expect((summary as unknown as Record<string, unknown>).api_key).toBeUndefined();
+    expect((summary as unknown as Record<string, unknown>).shared_secret).toBeUndefined();
+  });
+
+  it('throws GatekeeperApiError on 404', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'not_found' }, 404));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.updateClient('missing', PAYLOAD)).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 404,
+    });
+  });
+});
+
+describe('GatekeeperClient.deleteClient', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('DELETEs /api/admin/clients/<id>', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.deleteClient('cuid-1');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/clients/cuid-1');
+    expect((init as RequestInit).method).toBe('DELETE');
+  });
+
+  it('resolves on 204', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.deleteClient('cuid-1')).resolves.toBeUndefined();
+  });
+
+  it('throws GatekeeperApiError on 404', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'not_found' }, 404));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.deleteClient('missing')).rejects.toMatchObject({
       name: 'GatekeeperApiError',
       code: 404,
     });

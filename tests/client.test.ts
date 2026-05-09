@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GatekeeperApiError, GatekeeperClient } from '../src/client.js';
-import type { ClientSummary, PermissionSummary, Route } from '../src/types.js';
+import type { ClientSummary, PermissionSummary, Route, RoutePayload } from '../src/types.js';
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -298,6 +298,151 @@ describe('GatekeeperClient.listPermissions', () => {
     await expect(client.listPermissions()).rejects.toMatchObject({
       name: 'GatekeeperApiError',
       code: 401,
+    });
+  });
+});
+
+describe('GatekeeperClient.createRoute', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const PAYLOAD: RoutePayload = {
+    route_pattern: '/api/widgets',
+    domain: 'api.example.com',
+    service_name: 'widget-svc',
+    methods: {
+      GET: { auth_required: false, auth_type: null },
+      POST: { auth_required: true, auth_type: 'api_key' },
+    },
+  };
+
+  it('POSTs to /api/admin/routes with the payload as JSON body', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SAMPLE_ROUTE, 201));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com', token: 't' });
+
+    await client.createRoute(PAYLOAD);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/routes');
+    expect((init as RequestInit).method).toBe('POST');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(PAYLOAD);
+  });
+
+  it('returns the parsed Route on 201', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SAMPLE_ROUTE, 201));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const route = await client.createRoute(PAYLOAD);
+
+    expect(route.route_id).toBe('abc-123');
+  });
+
+  it('throws GatekeeperApiError on 400', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'invalid_request' }, 400));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.createRoute(PAYLOAD)).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 400,
+    });
+  });
+});
+
+describe('GatekeeperClient.updateRoute', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const PAYLOAD: RoutePayload = {
+    route_pattern: '/api/users/*',
+    domain: '*',
+    service_name: 'user-svc',
+    methods: { GET: { auth_required: true, auth_type: 'api_key' } },
+  };
+
+  it('PUTs to /api/admin/routes/<id>', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SAMPLE_ROUTE));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.updateRoute('abc-123', PAYLOAD);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/routes/abc-123');
+    expect((init as RequestInit).method).toBe('PUT');
+  });
+
+  it('url-encodes the route id', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SAMPLE_ROUTE));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.updateRoute('weird id/with slash', PAYLOAD);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://gatekeeper.example.com/api/admin/routes/weird%20id%2Fwith%20slash',
+    );
+  });
+
+  it('throws GatekeeperApiError on 404', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'not_found' }, 404));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.updateRoute('missing', PAYLOAD)).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 404,
+    });
+  });
+});
+
+describe('GatekeeperClient.deleteRoute', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('DELETEs /api/admin/routes/<id>', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.deleteRoute('abc-123');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/routes/abc-123');
+    expect((init as RequestInit).method).toBe('DELETE');
+  });
+
+  it('resolves on 204', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.deleteRoute('abc-123')).resolves.toBeUndefined();
+  });
+
+  it('throws GatekeeperApiError on 404', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'not_found' }, 404));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.deleteRoute('missing')).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 404,
     });
   });
 });

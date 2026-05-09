@@ -8,6 +8,7 @@ import type {
   GatekeeperClientConfig,
   PermissionSummary,
   Route,
+  RoutePayload,
 } from './types.js';
 
 export class GatekeeperApiError extends Error {
@@ -117,6 +118,29 @@ export class GatekeeperClient {
    */
   async listRoutes(): Promise<Route[]> {
     return this.request<Route[]>('GET', '/api/admin/routes');
+  }
+
+  /**
+   * Create a new route. Returns the persisted Route with its generated id.
+   */
+  async createRoute(payload: RoutePayload): Promise<Route> {
+    return this.request<Route>('POST', '/api/admin/routes', undefined, payload);
+  }
+
+  /**
+   * Replace the configuration of an existing route. Returns the updated Route.
+   * Throws GatekeeperApiError(404) if the route_id is unknown.
+   */
+  async updateRoute(routeId: string, payload: RoutePayload): Promise<Route> {
+    return this.request<Route>('PUT', `/api/admin/routes/${encodeURIComponent(routeId)}`, undefined, payload);
+  }
+
+  /**
+   * Delete a route by id. Resolves on 204 success.
+   * Throws GatekeeperApiError(404) if the route_id is unknown.
+   */
+  async deleteRoute(routeId: string): Promise<void> {
+    await this.request<void>('DELETE', `/api/admin/routes/${encodeURIComponent(routeId)}`);
   }
 
   /**

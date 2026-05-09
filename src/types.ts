@@ -35,6 +35,19 @@ export interface Route {
   updated_at: number;
 }
 
+/**
+ * Payload accepted by createRoute / updateRoute.
+ *
+ * Same shape as Route minus the server-managed fields (route_id, created_at,
+ * updated_at). At least one method must be provided.
+ */
+export interface RoutePayload {
+  route_pattern: string;
+  domain: string;
+  service_name: string;
+  methods: Partial<Record<HttpMethod, MethodAuth>>;
+}
+
 /** Lifecycle state of a Client credential. */
 export type ClientStatus = 'active' | 'suspended' | 'revoked';
 

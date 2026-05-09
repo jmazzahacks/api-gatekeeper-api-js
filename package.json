@@ -1,6 +1,6 @@
 {
   "name": "@jmazzahacks/api-gatekeeper-api",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript API client for API Gatekeeper — authentication/authorization service for nginx auth_request",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

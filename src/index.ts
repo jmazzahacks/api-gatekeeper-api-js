@@ -28,4 +28,5 @@ export type {
   MethodAuth,
   PermissionSummary,
   Route,
+  RoutePayload,
 } from './types.js';

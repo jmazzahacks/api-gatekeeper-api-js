@@ -33,6 +33,8 @@ export type {
   PermissionCreatePayload,
   PermissionSummary,
   PermissionUpdatePayload,
+  RateLimitPayload,
+  RateLimitSummary,
   Route,
   RoutePayload,
 } from './types.js';

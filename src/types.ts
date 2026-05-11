@@ -145,6 +145,28 @@ export interface PermissionUpdatePayload {
   allowed_methods: HttpMethod[];
 }
 
+/**
+ * A RateLimit joined with the client_name, as returned by the admin list
+ * endpoint. Clients without a configured rate limit are absent from the list.
+ */
+export interface RateLimitSummary {
+  client_id: string;
+  client_name: string;
+  /** Maximum requests allowed per 24-hour rolling window. Always positive. */
+  requests_per_day: number;
+  created_at: number;
+  updated_at: number;
+}
+
+/**
+ * Body of PUT /api/admin/rate-limits/<client_id>. Upsert semantics — first
+ * call returns 201, subsequent calls return 200 with the updated row.
+ */
+export interface RateLimitPayload {
+  /** Must be a positive integer. Server rejects 0, negatives, and non-ints. */
+  requests_per_day: number;
+}
+
 /** Error envelope returned by the Gatekeeper API. */
 export interface ApiError {
   /** HTTP status code. */

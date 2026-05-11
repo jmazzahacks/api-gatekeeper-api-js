@@ -15,6 +15,8 @@ import type {
   PermissionCreatePayload,
   PermissionSummary,
   PermissionUpdatePayload,
+  RateLimitPayload,
+  RateLimitSummary,
   Route,
   RoutePayload,
 } from '../src/types.js';
@@ -785,6 +787,174 @@ describe('GatekeeperClient.deletePermission', () => {
     const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
 
     await expect(client.deletePermission('missing')).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 404,
+    });
+  });
+});
+
+const SAMPLE_RATE_LIMIT: RateLimitSummary = {
+  client_id: 'client-uuid-1',
+  client_name: 'alpha-service',
+  requests_per_day: 1000,
+  created_at: 1_700_000_000,
+  updated_at: 1_700_000_000,
+};
+
+describe('GatekeeperClient.listRateLimits', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('calls GET /api/admin/rate-limits', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse([SAMPLE_RATE_LIMIT]));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com', token: 't' });
+
+    await client.listRateLimits();
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/rate-limits');
+    expect((init as RequestInit).method).toBe('GET');
+  });
+
+  it('returns the parsed array of rate-limit summaries', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse([SAMPLE_RATE_LIMIT]));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const rows = await client.listRateLimits();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].client_id).toBe('client-uuid-1');
+    expect(rows[0].requests_per_day).toBe(1000);
+  });
+
+  it('returns an empty array when none are configured', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse([]));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const rows = await client.listRateLimits();
+
+    expect(rows).toEqual([]);
+  });
+
+  it('throws GatekeeperApiError on 401', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'unauthorized' }, 401));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.listRateLimits()).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 401,
+    });
+  });
+});
+
+describe('GatekeeperClient.setRateLimit', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const PAYLOAD: RateLimitPayload = { requests_per_day: 1000 };
+
+  it('PUTs /api/admin/rate-limits/<client_id> with the payload as JSON body', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SAMPLE_RATE_LIMIT, 201));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com', token: 't' });
+
+    await client.setRateLimit('client-uuid-1', PAYLOAD);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/rate-limits/client-uuid-1');
+    expect((init as RequestInit).method).toBe('PUT');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(PAYLOAD);
+  });
+
+  it('url-encodes the client id', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SAMPLE_RATE_LIMIT, 201));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.setRateLimit('weird id/with slash', PAYLOAD);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://gatekeeper.example.com/api/admin/rate-limits/weird%20id%2Fwith%20slash',
+    );
+  });
+
+  it('returns the RateLimitSummary on 201 (first-time set)', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SAMPLE_RATE_LIMIT, 201));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const summary = await client.setRateLimit('client-uuid-1', PAYLOAD);
+
+    expect(summary.client_id).toBe('client-uuid-1');
+    expect(summary.requests_per_day).toBe(1000);
+  });
+
+  it('returns the RateLimitSummary on 200 (update)', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse(SAMPLE_RATE_LIMIT, 200));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    const summary = await client.setRateLimit('client-uuid-1', PAYLOAD);
+
+    expect(summary.requests_per_day).toBe(1000);
+  });
+
+  it('throws GatekeeperApiError on 400 (unknown client)', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'invalid_request' }, 400));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.setRateLimit('missing', PAYLOAD)).rejects.toMatchObject({
+      name: 'GatekeeperApiError',
+      code: 400,
+    });
+  });
+});
+
+describe('GatekeeperClient.deleteRateLimit', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (fetchMock = vi.fn()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('DELETEs /api/admin/rate-limits/<client_id>', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await client.deleteRateLimit('client-uuid-1');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gatekeeper.example.com/api/admin/rate-limits/client-uuid-1');
+    expect((init as RequestInit).method).toBe('DELETE');
+  });
+
+  it('resolves on 204', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.deleteRateLimit('client-uuid-1')).resolves.toBeUndefined();
+  });
+
+  it('throws GatekeeperApiError on 404', async () => {
+    fetchMock.mockResolvedValue(mockJsonResponse({ error: 'not_found' }, 404));
+    const client = new GatekeeperClient({ baseUrl: 'https://gatekeeper.example.com' });
+
+    await expect(client.deleteRateLimit('missing')).rejects.toMatchObject({
       name: 'GatekeeperApiError',
       code: 404,
     });

@@ -12,6 +12,8 @@ import type {
   PermissionCreatePayload,
   PermissionSummary,
   PermissionUpdatePayload,
+  RateLimitPayload,
+  RateLimitSummary,
   Route,
   RoutePayload,
 } from './types.js';
@@ -236,6 +238,39 @@ export class GatekeeperClient {
     await this.request<void>(
       'DELETE',
       `/api/admin/permissions/${encodeURIComponent(permissionId)}`,
+    );
+  }
+
+  /**
+   * List per-client rate limits, joined with client_name. Clients without a
+   * configured limit are absent from the response.
+   */
+  async listRateLimits(): Promise<RateLimitSummary[]> {
+    return this.request<RateLimitSummary[]>('GET', '/api/admin/rate-limits');
+  }
+
+  /**
+   * Upsert a rate limit for a client. First call to a client returns 201;
+   * subsequent calls return 200 with the updated row. Throws
+   * GatekeeperApiError(400) if the client_id is unknown.
+   */
+  async setRateLimit(clientId: string, payload: RateLimitPayload): Promise<RateLimitSummary> {
+    return this.request<RateLimitSummary>(
+      'PUT',
+      `/api/admin/rate-limits/${encodeURIComponent(clientId)}`,
+      undefined,
+      payload,
+    );
+  }
+
+  /**
+   * Remove a client's per-client rate limit. Resolves on 204.
+   * Throws GatekeeperApiError(404) if no limit was configured for the client.
+   */
+  async deleteRateLimit(clientId: string): Promise<void> {
+    await this.request<void>(
+      'DELETE',
+      `/api/admin/rate-limits/${encodeURIComponent(clientId)}`,
     );
   }
 }
